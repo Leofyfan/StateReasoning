@@ -1,0 +1,7 @@
+wandb
+transformers
+datasets
+accelerate
+torch
+Pillow
+tqdm
