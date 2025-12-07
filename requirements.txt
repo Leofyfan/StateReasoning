@@ -5,3 +5,4 @@ accelerate
 torch
 Pillow
 tqdm
+vllm==0.11.0

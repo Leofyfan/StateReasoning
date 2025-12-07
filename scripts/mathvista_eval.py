@@ -1,10 +1,10 @@
 """
 MathVista evaluation with VERL and confidence tracing.
 
-This script runs Qwen3-VL-4B-Thinking on the MathVista dataset and logs
-inference trajectories to Weights & Biases. It captures both logit-based
-confidence and a simple relative confidence heuristic to study how model
-"state" evolves during reasoning.
+This script runs Qwen3-VL-4B-Thinking on the MathVista dataset with vLLM
+(0.11.0) and logs inference trajectories to Weights & Biases. It captures
+both logit-based confidence and a simple relative confidence heuristic to
+study how model "state" evolves during reasoning.
 """
 
 import argparse
@@ -16,11 +16,8 @@ from datasets import load_dataset
 from PIL import Image
 from tqdm import tqdm
 import wandb
-from transformers import (
-    AutoModelForCausalLM,
-    AutoProcessor,
-    GenerationConfig,
-)
+from transformers import AutoProcessor
+from vllm import LLM, SamplingParams
 
 
 PHASES = [
@@ -49,31 +46,64 @@ class SampleResult:
     trajectory: List[Dict[str, float]]
 
 
-def build_prompt(question: str) -> str:
-    return (
-        "You are a careful math and vision tutor. Read the question and image, "
-        "think step by step, and output a concise final answer."
-        "\nQuestion: "
-        f"{question}\nAnswer:"
-    )
+def build_messages(question: str, image: Image.Image) -> List[Dict]:
+    return [
+        {
+            "role": "system",
+            "content": "You are a careful math and vision tutor. Read the question and image, "
+            "think step by step, and output a concise final answer.",
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image},
+                {"type": "text", "text": f"{question}"},
+            ],
+        },
+    ]
 
 
 def extract_confidence(
-    generation_outputs: torch.LongTensor,
-    scores: List[torch.Tensor],
-    input_length: int,
+    token_ids: List[int],
+    logprob_trace: List[Dict],
 ) -> ConfidenceSummary:
-    sequence = generation_outputs[:, input_length:]
+    """Derive absolute and relative confidence from vLLM logprobs."""
+
     token_confidences: List[float] = []
     margin_confidences: List[float] = []
 
-    for step, score in enumerate(scores):
-        token_id = sequence[0, step]
-        probs = torch.softmax(score[0], dim=-1)
-        prob = probs[token_id].item()
-        token_confidences.append(prob)
-        top2 = torch.topk(probs, 2).values
-        margin_confidences.append((top2[0] - top2[1]).item())
+    for step, token_id in enumerate(token_ids):
+        step_logprobs = logprob_trace[step] if step < len(logprob_trace) else {}
+        probs: List[float] = []
+        target_prob: Optional[float] = None
+
+        for entry in step_logprobs.values():
+            if isinstance(entry, (float, int)):
+                logprob = float(entry)
+                entry_token_id = None
+            else:
+                logprob = getattr(entry, "logprob", None)
+                entry_token_id = getattr(entry, "token_id", None)
+
+            if logprob is None:
+                continue
+
+            prob = float(torch.exp(torch.tensor(logprob)).item())
+            probs.append(prob)
+            if entry_token_id == token_id:
+                target_prob = prob
+
+        if target_prob is None and probs:
+            target_prob = probs[0]
+
+        token_confidences.append(target_prob or 0.0)
+        if len(probs) >= 2:
+            top_two = sorted(probs, reverse=True)[:2]
+            margin_confidences.append(top_two[0] - top_two[1])
+        elif probs:
+            margin_confidences.append(probs[0])
+        else:
+            margin_confidences.append(0.0)
 
     avg_prob = sum(token_confidences) / max(len(token_confidences), 1)
     absolute = float(avg_prob)
@@ -99,39 +129,29 @@ def interpolate_phases(token_confidences: List[float]) -> List[Tuple[str, float]
 
 
 def run_sample(
-    model,
+    llm: LLM,
     processor,
-    device: torch.device,
     sample: Dict,
-    max_new_tokens: int,
+    sampling_params: SamplingParams,
 ) -> SampleResult:
     image: Image.Image = sample["image"]
-    prompt = build_prompt(sample["question"])
+    messages = build_messages(sample["question"], image)
+    prompt = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-    inputs = processor(
-        images=image,
-        text=prompt,
-        return_tensors="pt",
-    ).to(device)
-
-    generation_config = GenerationConfig(
-        max_new_tokens=max_new_tokens,
-        do_sample=False,
-        output_scores=True,
-        return_dict_in_generate=True,
+    outputs = llm.generate(
+        {"prompt": prompt, "multi_modal_data": {"image": image}},
+        sampling_params=sampling_params,
     )
 
-    with torch.no_grad():
-        outputs = model.generate(**inputs, generation_config=generation_config)
-
-    text = processor.batch_decode(outputs.sequences[:, inputs.input_ids.shape[1]:], skip_special_tokens=True)[0]
-    confidence = extract_confidence(outputs.sequences, outputs.scores, inputs.input_ids.shape[1])
+    result = outputs[0].outputs[0]
+    logprob_trace = result.logprobs or []
+    confidence = extract_confidence(result.token_ids, logprob_trace)
 
     return SampleResult(
         question_id=str(sample.get("qid", sample.get("id", "unknown"))),
         question=sample["question"],
         answer=sample.get("answer", ""),
-        prediction=text.strip(),
+        prediction=result.text.strip(),
         confidence=confidence,
         trajectory=[{"phase": phase, "confidence": value} for phase, value in confidence.phase_curve],
     )
@@ -158,19 +178,24 @@ def evaluate(
     project: str,
     run_name: str,
     data_dir: Optional[str] = None,
+    dtype: str = "bfloat16",
 ) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto" if torch.cuda.is_available() else None,
+    llm = LLM(
+        model=model_id,
         trust_remote_code=True,
+        dtype=dtype,
     )
 
     dataset = load_dataset("AI-MO/MathVista", data_dir=data_dir, split=split)
     if limit:
         dataset = dataset.select(range(limit))
+
+    sampling_params = SamplingParams(
+        max_tokens=max_new_tokens,
+        temperature=0.0,
+        logprobs=10,
+    )
 
     wandb.init(project=project, name=run_name, config={
         "model_id": model_id,
@@ -196,11 +221,10 @@ def evaluate(
         batch = dataset[start : start + batch_size]
         for sample in batch:
             result = run_sample(
-                model=model,
+                llm=llm,
                 processor=processor,
-                device=device,
                 sample=sample,
-                max_new_tokens=max_new_tokens,
+                sampling_params=sampling_params,
             )
             log_to_wandb(table, result)
 
@@ -217,7 +241,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-new-tokens", type=int, default=1024, help="Maximum tokens to generate")
     parser.add_argument("--project", default="StateReasoning", help="Weights & Biases project name")
     parser.add_argument("--run-name", default="qwen3-vl-4b-thinking", help="Weights & Biases run name")
-    parser.add_argument("--data-dir", default="/home/yuanfan/projects/StateReasoning/data", help="Optional local path to MathVista data")
+    parser.add_argument("--data-dir", default=None, help="Optional local path to MathVista data")
+    parser.add_argument("--dtype", default="bfloat16", help="Computation dtype for vLLM (e.g., float16, bfloat16)")
     return parser.parse_args()
 
 
@@ -232,6 +257,7 @@ def main() -> None:
         project=args.project,
         run_name=args.run_name,
         data_dir=args.data_dir,
+        dtype=args.dtype,
     )
 
 
