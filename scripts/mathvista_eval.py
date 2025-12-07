@@ -210,14 +210,14 @@ def evaluate(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MathVista evaluation with VERL-style logging")
-    parser.add_argument("--model-id", default="Qwen/Qwen3-VL-4B-Thinking", help="Model identifier")
+    parser.add_argument("--model-id", default="/home/shenyl/hf/model/Qwen/Qwen3-VL-4B-Thinking", help="Model identifier")
     parser.add_argument("--split", default="testmini", help="Dataset split to evaluate")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of samples")
     parser.add_argument("--batch-size", type=int, default=1, help="Batch size for evaluation")
-    parser.add_argument("--max-new-tokens", type=int, default=256, help="Maximum tokens to generate")
-    parser.add_argument("--project", default="mathvista-verl", help="Weights & Biases project name")
+    parser.add_argument("--max-new-tokens", type=int, default=1024, help="Maximum tokens to generate")
+    parser.add_argument("--project", default="StateReasoning", help="Weights & Biases project name")
     parser.add_argument("--run-name", default="qwen3-vl-4b-thinking", help="Weights & Biases run name")
-    parser.add_argument("--data-dir", default=None, help="Optional local path to MathVista data")
+    parser.add_argument("--data-dir", default="/home/yuanfan/projects/StateReasoning/data", help="Optional local path to MathVista data")
     return parser.parse_args()
 
 
