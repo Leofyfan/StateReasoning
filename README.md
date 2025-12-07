@@ -27,10 +27,10 @@ ECE
 
 ## MathVista evaluation with VERL
 
-`scripts/mathvista_eval.py` 使用 VERL 的工作流模板驱动 Qwen3-VL-4B-Thinking 在 MathVista 数据集上进行推理，同时跟踪 logit-based 置信度，生成相对置信度曲线并将全过程记录到 Weights & Biases。
+`scripts/mathvista_eval.py` 使用 VERL 的工作流模板驱动 Qwen3-VL-4B-Thinking 在 MathVista 数据集上进行推理（基于 vLLM 0.11.0），同时跟踪 logit-based 置信度，生成相对置信度曲线并将全过程记录到 Weights & Biases。
 
 ### 准备环境
-1. 安装依赖：
+1. 安装依赖（vLLM 已锁定 0.11.0）：
    ```bash
    pip install -r requirements.txt
    ```
@@ -42,6 +42,7 @@ python scripts/mathvista_eval.py \
   --model-id Qwen/Qwen3-VL-4B-Thinking \
   --split testmini \
   --limit 8 \
+  --dtype bfloat16 \
   --project mathvista-verl \
   --run-name qwen3-vl-thinking-test
 ```
