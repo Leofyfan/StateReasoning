@@ -1,0 +1,65 @@
+_wandb:
+    value:
+        cli_version: 0.23.1
+        e:
+            38fuaq7octyk5eg8omwapumiqdf2vrf2:
+                cpu_count: 26
+                cpu_count_logical: 52
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "32212254720"
+                        used: "23771181056"
+                email: leofyfan7@gmail.com
+                executable: /root/miniconda3/envs/sr/bin/python
+                git:
+                    commit: ff3a690ffc96e6e81f8af81db91de8a68c9428a7
+                    remote: https://github.com/Leofyfan/StateReasoning.git
+                gpu: Tesla V100-PCIE-32GB
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "34359738368"
+                      name: Tesla V100-PCIE-32GB
+                      uuid: GPU-967ec7d2-4199-74f6-63f7-c35c9f6083a6
+                host: autodl-container-afb9119d00-077e8549
+                memory:
+                    total: "230306287616"
+                os: Linux-5.4.0-136-generic-x86_64-with-glibc2.35
+                program: <python with no main file>
+                python: CPython 3.12.12
+                root: /root/projects/StateReasoning
+                startedAt: "2025-12-11T16:38:05.343513Z"
+                writerId: 38fuaq7octyk5eg8omwapumiqdf2vrf2
+        m: []
+        python_version: 3.12.12
+        t:
+            "1":
+                - 1
+                - 11
+                - 30
+                - 41
+                - 49
+                - 51
+                - 71
+                - 95
+            "2":
+                - 1
+                - 11
+                - 30
+                - 41
+                - 49
+                - 51
+                - 71
+                - 95
+            "3":
+                - 2
+                - 13
+            "4": 3.12.12
+            "5": 0.23.1
+            "6": 4.57.3
+            "8":
+                - 1
+            "12": 0.23.1
+            "13": linux-x86_64

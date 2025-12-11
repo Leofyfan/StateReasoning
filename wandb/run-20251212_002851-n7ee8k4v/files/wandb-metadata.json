@@ -1,0 +1,38 @@
+{
+  "os":  "Linux-5.4.0-136-generic-x86_64-with-glibc2.35",
+  "python":  "CPython 3.12.12",
+  "startedAt":  "2025-12-11T16:28:51.071887Z",
+  "program":  "<python with no main file>",
+  "git":  {
+    "remote":  "https://github.com/Leofyfan/StateReasoning.git",
+    "commit":  "ff3a690ffc96e6e81f8af81db91de8a68c9428a7"
+  },
+  "email":  "leofyfan7@gmail.com",
+  "root":  "/root/projects/StateReasoning",
+  "host":  "autodl-container-afb9119d00-077e8549",
+  "executable":  "/root/miniconda3/envs/sr/bin/python",
+  "cpu_count":  26,
+  "cpu_count_logical":  52,
+  "gpu":  "Tesla V100-PCIE-32GB",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "32212254720",
+      "used":  "23763398656"
+    }
+  },
+  "memory":  {
+    "total":  "230306287616"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "Tesla V100-PCIE-32GB",
+      "memoryTotal":  "34359738368",
+      "cudaCores":  5120,
+      "architecture":  "Volta",
+      "uuid":  "GPU-967ec7d2-4199-74f6-63f7-c35c9f6083a6"
+    }
+  ],
+  "cudaVersion":  "13.0",
+  "writerId":  "tg3mp41dk92zbtfe2xzmsqeiafh3662q"
+}
